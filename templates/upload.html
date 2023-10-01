@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+</head>
+<body>
+    <h1>File Upload</h1>
+    <input type="file" id="fileInput" accept="image/*" required>
+    <br>
+    <button onclick="uploadFile()">Upload</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        function uploadFile() {
+            var fileInput = document.getElementById('fileInput');
+            var file = fileInput.files[0];
+
+            // 檢查是否已經上傳過
+            var hasUploaded = localStorage.getItem('hasUploaded');
+            // if (hasUploaded) {
+            //     alert('You have already uploaded a file.');
+            //     return;
+            // }
+
+            // 上傳文件
+            var formData = new FormData();
+            formData.append('picture', file, file.name);
+
+            axios.post('http://localhost:8080/lottery', formData)
+                .then(function (response) {
+                    console.log(response.data);
+                    // 使用本地存儲標記為已經上傳
+                    localStorage.setItem('hasUploaded', 'true');
+                    alert('File uploaded successfully');
+                })
+                .catch(function (error) {
+                    console.error('Error uploading file: ', error);
+                    // 取得後端傳遞的錯誤信息
+                    var errorMessage = error.response ? error.response.data.error : 'Unknown error';
+                    alert('Error uploading file: ' + errorMessage);                });
+        }
+    </script>
+</body>
+</html>
