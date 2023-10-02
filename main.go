@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
+	"mime/multipart"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"mime/multipart"
-	"time"
 )
 
 var db *gorm.DB
@@ -51,7 +52,7 @@ func main() {
 
 	// 添加路由
 	r.POST("/lottery", uploadHandler)
-
+	r.POST("/getlottery", getLotteryData)
 	r.Run(":8080")
 }
 func uploadHandler(c *gin.Context) {
@@ -120,4 +121,23 @@ func isDuplicatePicture(filename string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func getLotteryData(c *gin.Context) {
+	var removedNumbers []int
+	var awardNumbers []int
+
+	// 提取 removed 的數據
+	if err := db.Table("removed").Pluck("num", &removedNumbers).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Error fetching removed data", "details": err.Error()})
+		return
+	}
+
+	// 提取 award 的數據
+	if err := db.Table("award").Pluck("num", &awardNumbers).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Error fetching award data", "details": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"removed": removedNumbers, "大獎": awardNumbers})
 }
