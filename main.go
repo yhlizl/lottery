@@ -134,6 +134,11 @@ func uploadHandler(c *gin.Context) {
 
 	// 隨機選取不在 removed 表中的數字
 	randomNumber := getRandomNumber()
+	// 檢查 getRandomNumber 是否返回了 0
+	if randomNumber == 0 {
+		c.JSON(500, gin.H{"error": "Unable to draw, please contact 羅油膩"})
+		return
+	}
 
 	// 插入到 removed 表中
 	if err := db.Table("removed").Create(&Removed{Num: randomNumber}).Error; err != nil {
@@ -180,22 +185,60 @@ func getLotteryData(c *gin.Context) {
 	c.JSON(200, gin.H{"removed": removedNumbers, "大獎": awardNumbers})
 }
 func getRandomNumber() int {
-	source := rand.NewSource(time.Now().UnixNano())
-	random := rand.New(source)
-
-	// 生成一個介於1和40之間的隨機數字
-	randomNumber := random.Intn(40) + 1
-
-	// 檢查生成的數字是否在 removed 表中，如果是，重新生成
-	for isNumberInRemoved(randomNumber) {
-		randomNumber = random.Intn(40) + 1
+	// 获取所有的数字
+	var allNumbers []int
+	for i := 1; i <= 40; i++ {
+		allNumbers = append(allNumbers, i)
 	}
 
-	return randomNumber
+	// 获取已移除的数字
+	var removedNumbers []int
+	if err := db.Table("removed").Pluck("num", &removedNumbers).Error; err != nil {
+		fmt.Println("getRandomNumber error removed", err)
+		// 处理错误，这里你可以选择返回错误或者使用默认值
+		return 0
+	}
+
+	// 从所有数字中移除已移除的数字
+	remainingNumbers := removeNumbers(allNumbers, removedNumbers)
+
+	// 如果没有剩余数字，返回默认值
+	if len(remainingNumbers) == 0 {
+		return 0
+	}
+
+	// 从剩余数字中随机选择一个
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
+	randomNumberIndex := random.Intn(len(remainingNumbers))
+	return remainingNumbers[randomNumberIndex]
 }
 
 func isNumberInRemoved(number int) bool {
 	var count int64
 	db.Table("removed").Where("num = ?", number).Count(&count)
 	return count > 0
+}
+
+// 从切片中移除指定的数字
+func removeNumbers(allNumbers, removedNumbers []int) []int {
+	remainingNumbers := make([]int, 0, len(allNumbers))
+
+	for _, num := range allNumbers {
+		if !contains(removedNumbers, num) {
+			remainingNumbers = append(remainingNumbers, num)
+		}
+	}
+
+	return remainingNumbers
+}
+
+// 检查数字是否在切片中
+func contains(numbers []int, target int) bool {
+	for _, num := range numbers {
+		if num == target {
+			return true
+		}
+	}
+	return false
 }
