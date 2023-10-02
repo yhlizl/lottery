@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"math/rand"
 	"mime/multipart"
 	"time"
 
@@ -21,7 +23,7 @@ func SetupDB() (*gorm.DB, error) {
 		return nil, err
 	}
 	// 自動遷移，創建表格
-	db.AutoMigrate(&Lottery{})
+	db.AutoMigrate(&Lottery{}, &Removed{})
 	return db, nil
 }
 
@@ -35,6 +37,9 @@ type Lottery struct {
 	User    string `gorm:"column:user"`
 	Date    string `gorm:"column:date"`
 	Picture []byte `gorm:"column:picture"`
+}
+type Removed struct {
+	Num int `gorm:"column:num"`
 }
 
 func main() {
@@ -107,7 +112,18 @@ func uploadHandler(c *gin.Context) {
 	// 使用本地存儲標記為已經上傳
 	c.SetCookie("hasUploaded", "true", 0, "/", "localhost", false, true)
 
-	c.JSON(200, gin.H{"message": "Lottery uploaded successfully"})
+	// 隨機選取不在 removed 表中的數字
+	randomNumber := getRandomNumber()
+
+	// 插入到 removed 表中
+	if err := db.Table("removed").Create(&Removed{Num: randomNumber}).Error; err != nil {
+		// 處理錯誤
+		fmt.Println("Error inserting data into removed table:", err)
+		c.JSON(500, gin.H{"error": "Error inserting data into removed table", "details": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Lottery uploaded successfully", "result": randomNumber})
 }
 
 // isDuplicatePicture 檢查數據庫中是否已存在相同的圖片
@@ -140,4 +156,24 @@ func getLotteryData(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"removed": removedNumbers, "大獎": awardNumbers})
+}
+func getRandomNumber() int {
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
+
+	// 生成一個介於1和40之間的隨機數字
+	randomNumber := random.Intn(40) + 1
+
+	// 檢查生成的數字是否在 removed 表中，如果是，重新生成
+	for isNumberInRemoved(randomNumber) {
+		randomNumber = random.Intn(40) + 1
+	}
+
+	return randomNumber
+}
+
+func isNumberInRemoved(number int) bool {
+	var count int64
+	db.Table("removed").Where("num = ?", number).Count(&count)
+	return count > 0
 }
