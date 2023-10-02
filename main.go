@@ -45,11 +45,14 @@ type Removed struct {
 }
 
 func main() {
+	// 設定 GIN_MODE 為 release 模式
+	gin.SetMode(gin.ReleaseMode)
+
 	r := gin.Default()
 
 	// 使用 CORS 中間件
 	r.Use(cors.Default())
-
+	// r.Use(cors.Config.AllowAllOrigins)
 	// 初始化 MySQL 連線
 	var err error
 	db, err = SetupDB()
@@ -97,7 +100,11 @@ func uploadHandler(c *gin.Context) {
 		User: "SomeUser", // 此處應替換為實際用戶
 		Date: currentDate,
 	}
-
+	// 保存文件
+	if err := c.SaveUploadedFile(formData.Picture, "uploads/"+formData.Picture.Filename); err != nil {
+		c.JSON(500, gin.H{"error": "Error saving file", "details": err.Error()})
+		return
+	}
 	// 開啟上傳的文件
 	file, err := formData.Picture.Open()
 	if err != nil {
@@ -158,12 +165,14 @@ func getLotteryData(c *gin.Context) {
 
 	// 提取 removed 的數據
 	if err := db.Table("removed").Pluck("num", &removedNumbers).Error; err != nil {
+		fmt.Println("getLotteryData error removed", err)
 		c.JSON(500, gin.H{"error": "Error fetching removed data", "details": err.Error()})
 		return
 	}
 
 	// 提取 award 的數據
 	if err := db.Table("award").Pluck("num", &awardNumbers).Error; err != nil {
+		fmt.Println("getLotteryData error award", err)
 		c.JSON(500, gin.H{"error": "Error fetching award data", "details": err.Error()})
 		return
 	}
