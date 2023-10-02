@@ -96,11 +96,11 @@ func uploadHandler(c *gin.Context) {
 		Date: currentDate,
 	}
 
-	// 保存文件
-	if err := c.SaveUploadedFile(formData.Picture, "uploads/"+formData.Picture.Filename); err != nil {
-		c.JSON(500, gin.H{"error": "Error saving file", "details": err.Error()})
-		return
-	}
+	// // 保存文件
+	// if err := c.SaveUploadedFile(formData.Picture, "uploads/"+formData.Picture.Filename); err != nil {
+	// 	c.JSON(500, gin.H{"error": "Error saving file", "details": err.Error()})
+	// 	return
+	// }
 
 	// 插入數據
 	lottery.Picture = []byte(formData.Picture.Filename)
