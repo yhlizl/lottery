@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"mime/multipart"
 	"time"
@@ -34,9 +35,10 @@ type FormData struct {
 
 type Lottery struct {
 	gorm.Model
-	User    string `gorm:"column:user"`
-	Date    string `gorm:"column:date"`
-	Picture []byte `gorm:"column:picture"`
+	User     string `gorm:"column:user"`
+	Date     string `gorm:"column:date"`
+	Picture  []byte `gorm:"column:picture"`
+	Filename string `gorm:"column:filename"`
 }
 type Removed struct {
 	Num int `gorm:"column:num"`
@@ -96,14 +98,25 @@ func uploadHandler(c *gin.Context) {
 		Date: currentDate,
 	}
 
-	// // 保存文件
-	// if err := c.SaveUploadedFile(formData.Picture, "uploads/"+formData.Picture.Filename); err != nil {
-	// 	c.JSON(500, gin.H{"error": "Error saving file", "details": err.Error()})
-	// 	return
-	// }
+	// 開啟上傳的文件
+	file, err := formData.Picture.Open()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Error opening file", "details": err.Error()})
+		return
+	}
+	defer file.Close()
 
+	// 讀取文件內容
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Error reading file content", "details": err.Error()})
+		return
+	}
+
+	// 將文件內容保存到 Lottery 結構的 Picture 欄位
+	lottery.Picture = fileContent
+	lottery.Filename = formData.Picture.Filename
 	// 插入數據
-	lottery.Picture = []byte(formData.Picture.Filename)
 	if err := db.Create(&lottery).Error; err != nil {
 		c.JSON(500, gin.H{"error": "Error inserting data into database", "details": err.Error()})
 		return
