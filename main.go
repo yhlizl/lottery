@@ -154,7 +154,7 @@ func uploadHandler(c *gin.Context) {
 // isDuplicatePicture 檢查數據庫中是否已存在相同的圖片
 func isDuplicatePicture(filename string) (bool, error) {
 	var existingLottery Lottery
-	result := db.Where("picture = ?", filename).First(&existingLottery)
+	result := db.Where("filename = ?", filename).First(&existingLottery)
 	if result.RowsAffected > 0 {
 		return true, nil
 	} else if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
