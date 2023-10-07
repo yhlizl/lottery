@@ -25,6 +25,15 @@ func SetupDB() (*gorm.DB, error) {
 	}
 	// 自動遷移，創建表格
 	db.AutoMigrate(&Lottery{}, &Removed{})
+	// 關閉自動遷移
+	// db = db.Session(&gorm.Session{SkipDefaultTransaction: true})
+	// // 手動遷移
+	// if err := db.Migrator().CreateTable(&Removed{}); err != nil {
+	// 	return nil, err
+	// }
+	// if err := db.AutoMigrate(&Lottery{}); err != nil {
+	// 	return nil, err
+	// }
 	return db, nil
 }
 
@@ -35,13 +44,17 @@ type FormData struct {
 
 type Lottery struct {
 	gorm.Model
-	User     string `gorm:"column:user"`
-	Date     string `gorm:"column:date"`
-	Picture  []byte `gorm:"column:picture"`
-	Filename string `gorm:"column:filename"`
+	User      string  `gorm:"column:user"`
+	Date      string  `gorm:"column:date"`
+	Picture   []byte  `gorm:"column:picture"`
+	Filename  string  `gorm:"column:filename"`
+	RemovedID uint    `gorm:"column:removed_id" json:"-"`
+	Removed   Removed `gorm:"foreignKey:RemovedID;constraint:OnDelete:CASCADE"`
 }
 type Removed struct {
-	Num int `gorm:"column:num"`
+	gorm.Model
+	Num       int       `gorm:"column:num"`
+	Lotteries []Lottery `gorm:"foreignKey:RemovedID"`
 }
 
 func main() {
@@ -73,7 +86,7 @@ func uploadHandler(c *gin.Context) {
 	}
 
 	if hasUploaded {
-		c.JSON(400, gin.H{"error": "You have already uploaded a file."})
+		c.JSON(400, gin.H{"error": "你已經上傳過這張圖片"})
 		return
 	}
 
@@ -89,16 +102,36 @@ func uploadHandler(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Error checking duplicate picture", "details": err.Error()})
 		return
 	} else if isDuplicate {
-		c.JSON(400, gin.H{"error": "Duplicate picture. You cannot upload the same picture again."})
+		c.JSON(400, gin.H{"error": "你已經上傳過這張圖片"})
 		return
 	}
+
+	// 隨機選取不在 removed 表中的數字
+	randomNumber := getRandomNumber()
+	// 檢查 getRandomNumber 是否返回了 0
+	if randomNumber == 0 {
+		c.JSON(500, gin.H{"error": "失敗, 請找 羅油膩"})
+		return
+	}
+
+	// 插入到 removed 表中
+	var removedEntry Removed
+	if err := db.Where(&Removed{Num: randomNumber}).FirstOrInit(&removedEntry).Error; err != nil {
+		fmt.Println("Error checking data in removeds table:", err)
+		c.JSON(500, gin.H{"error": "Error checking data in removeds table", "details": err.Error()})
+		return
+	}
+	fmt.Println(removedEntry)
 
 	// 在這裡可以對 lottery 進行數據庫操作，例如插入或更新
 	// 生成當前日期
 	currentDate := time.Now().Format("2006-01-02")
 	lottery := Lottery{
-		User: "SomeUser", // 此處應替換為實際用戶
-		Date: currentDate,
+		User:      "SomeUser", // 此處應替換為實際用戶
+		Date:      currentDate,
+		RemovedID: removedEntry.ID, // 設定外鍵
+		// Add some debug output
+		Removed: removedEntry,
 	}
 	// 保存文件
 	if err := c.SaveUploadedFile(formData.Picture, "uploads/"+formData.Picture.Filename); err != nil {
@@ -125,28 +158,12 @@ func uploadHandler(c *gin.Context) {
 	lottery.Filename = formData.Picture.Filename
 	// 插入數據
 	if err := db.Create(&lottery).Error; err != nil {
-		c.JSON(500, gin.H{"error": "Error inserting data into database", "details": err.Error()})
+		c.JSON(500, gin.H{"error": "Error inserting data into the database", "details": err.Error()})
 		return
 	}
 
 	// 使用本地存儲標記為已經上傳
 	c.SetCookie("hasUploaded", "true", 0, "/", "localhost", false, true)
-
-	// 隨機選取不在 removed 表中的數字
-	randomNumber := getRandomNumber()
-	// 檢查 getRandomNumber 是否返回了 0
-	if randomNumber == 0 {
-		c.JSON(500, gin.H{"error": "Unable to draw, please contact 羅油膩"})
-		return
-	}
-
-	// 插入到 removed 表中
-	if err := db.Table("removed").Create(&Removed{Num: randomNumber}).Error; err != nil {
-		// 處理錯誤
-		fmt.Println("Error inserting data into removed table:", err)
-		c.JSON(500, gin.H{"error": "Error inserting data into removed table", "details": err.Error()})
-		return
-	}
 
 	c.JSON(200, gin.H{"message": "Lottery uploaded successfully", "result": randomNumber})
 }
@@ -169,7 +186,7 @@ func getLotteryData(c *gin.Context) {
 	var awardNumbers []int
 
 	// 提取 removed 的數據
-	if err := db.Table("removed").Pluck("num", &removedNumbers).Error; err != nil {
+	if err := db.Table("removeds").Pluck("num", &removedNumbers).Error; err != nil {
 		fmt.Println("getLotteryData error removed", err)
 		c.JSON(500, gin.H{"error": "Error fetching removed data", "details": err.Error()})
 		return
@@ -193,7 +210,7 @@ func getRandomNumber() int {
 
 	// 获取已移除的数字
 	var removedNumbers []int
-	if err := db.Table("removed").Pluck("num", &removedNumbers).Error; err != nil {
+	if err := db.Table("removeds").Pluck("num", &removedNumbers).Error; err != nil {
 		fmt.Println("getRandomNumber error removed", err)
 		// 处理错误，这里你可以选择返回错误或者使用默认值
 		return 0
@@ -216,7 +233,7 @@ func getRandomNumber() int {
 
 func isNumberInRemoved(number int) bool {
 	var count int64
-	db.Table("removed").Where("num = ?", number).Count(&count)
+	db.Table("removeds").Where("num = ?", number).Count(&count)
 	return count > 0
 }
 
