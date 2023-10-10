@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -53,15 +56,23 @@ type Lottery struct {
 }
 type Removed struct {
 	gorm.Model
-	Num       int       `gorm:"column:num"`
-	Lotteries []Lottery `gorm:"foreignKey:RemovedID"`
+	Num       int              `gorm:"column:num"`
+	Lotteries []Lottery        `gorm:"foreignKey:RemovedID"`
+	SessionID string           `gorm:"column:session_id"`
+	Session   sessions.Session `gorm:"-" json:"-"`
 }
 
 func main() {
-	// 設定 GIN_MODE 為 release 模式
-	gin.SetMode(gin.ReleaseMode)
+	// // 設定 GIN_MODE 為 release 模式
+	// gin.SetMode(gin.ReleaseMode)
+
+	// 設定 GIN_MODE 為 debug 模式
+	gin.SetMode(gin.DebugMode)
 
 	r := gin.Default()
+	// 設定 session 中間件
+	store := cookie.NewStore([]byte("secret"))
+	r.Use(sessions.Sessions("mysession", store))
 
 	// 使用 CORS 中間件
 	r.Use(cors.Default())
@@ -76,19 +87,62 @@ func main() {
 	// 添加路由
 	r.POST("/lottery", uploadHandler)
 	r.POST("/getlottery", getLotteryData)
+	r.POST("/getMyLotteryNumbers", getMyLotteryNumbers)
 	r.Run(":8080")
+}
+
+func getMyLotteryNumbers(c *gin.Context) {
+	// 從 session 中獲取用戶的 sessionID
+	sessionID := generateSessionID(c)
+	// 從數據庫中獲取這個 sessionID 的用戶抽過的號碼
+	var removedEntries []Removed
+	if err := db.Table("removeds").Where("session_id = ?", fmt.Sprintf("%v", sessionID)).Find(&removedEntries).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 如果用戶還沒有任何抽過的號碼，直接回傳空的結果
+			c.JSON(200, gin.H{"removed": []int{}})
+			return
+		}
+		fmt.Println("getMyLotteryNumbers error", err)
+		c.JSON(500, gin.H{"error": "Error fetching user's removed numbers", "details": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"removed": removedEntries})
+}
+
+func generateSessionID(c *gin.Context) string {
+
+	// // 初始化 session
+	// session := sessions.Default(c)
+
+	// // 從 session 中獲取用戶的 sessionID
+	// existingSessionID := session.Get("sessionID")
+	// if existingSessionID != nil {
+	// 	// 如果已经有 sessionID，返回现有的 sessionID
+	// 	return fmt.Sprintf("%v", existingSessionID)
+	// }
+
+	// // 如果還沒有 sessionID，生成一個新的
+	// newSessionID := fmt.Sprintf("%d", time.Now().UnixNano())
+	// fmt.Println("newSessionID", newSessionID)
+
+	// // 將新的 sessionID 存儲到 session 中，設置過期時間為一天
+	// session.Set("sessionID", newSessionID)
+	// session.Options(sessions.Options{
+	// 	MaxAge: 86400, // 一天的秒數
+	// 	Path:   "/",
+	// })
+	// if err := session.Save(); err != nil {
+	// 	fmt.Println("Error saving session:", err)
+	// 	// 在這裡處理錯誤，例如返回錯誤響應給用戶
+	// }
+	return c.ClientIP()
+
 }
 func uploadHandler(c *gin.Context) {
 	// 檢查是否已經上傳過
-	var hasUploaded bool
-	if _, err := c.Cookie("hasUploaded"); err == nil {
-		hasUploaded = true
-	}
 
-	if hasUploaded {
-		c.JSON(400, gin.H{"error": "你已經上傳過這張圖片"})
-		return
-	}
+	sessionID := generateSessionID(c)
 
 	// 上傳文件
 	var formData FormData
@@ -121,8 +175,8 @@ func uploadHandler(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Error checking data in removeds table", "details": err.Error()})
 		return
 	}
-	fmt.Println(removedEntry)
 
+	removedEntry.SessionID = fmt.Sprintf("%v", sessionID)
 	// 在這裡可以對 lottery 進行數據庫操作，例如插入或更新
 	// 生成當前日期
 	currentDate := time.Now().Format("2006-01-02")
@@ -162,9 +216,6 @@ func uploadHandler(c *gin.Context) {
 		return
 	}
 
-	// 使用本地存儲標記為已經上傳
-	c.SetCookie("hasUploaded", "true", 0, "/", "localhost", false, true)
-
 	c.JSON(200, gin.H{"message": "Lottery uploaded successfully", "result": randomNumber})
 }
 
@@ -184,6 +235,8 @@ func isDuplicatePicture(filename string) (bool, error) {
 func getLotteryData(c *gin.Context) {
 	var removedNumbers []int
 	var awardNumbers []int
+	sessionID := generateSessionID(c)
+	fmt.Println("start session", sessionID)
 
 	// 提取 removed 的數據
 	if err := db.Table("removeds").Pluck("num", &removedNumbers).Error; err != nil {
