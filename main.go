@@ -151,8 +151,23 @@ func uploadHandler(c *gin.Context) {
 		return
 	}
 
+	// 開啟上傳的文件
+	file, err := formData.Picture.Open()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Error opening file", "details": err.Error()})
+		return
+	}
+	defer file.Close()
+
+	// 讀取文件內容
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Error reading file content", "details": err.Error()})
+		return
+	}
+
 	// 檢查數據庫中是否已存在相同的圖片
-	if isDuplicate, err := isDuplicatePicture(formData.Picture.Filename); err != nil {
+	if isDuplicate, err := isDuplicatePicture(fileContent); err != nil {
 		c.JSON(500, gin.H{"error": "Error checking duplicate picture", "details": err.Error()})
 		return
 	} else if isDuplicate {
@@ -192,20 +207,6 @@ func uploadHandler(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Error saving file", "details": err.Error()})
 		return
 	}
-	// 開啟上傳的文件
-	file, err := formData.Picture.Open()
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Error opening file", "details": err.Error()})
-		return
-	}
-	defer file.Close()
-
-	// 讀取文件內容
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Error reading file content", "details": err.Error()})
-		return
-	}
 
 	// 將文件內容保存到 Lottery 結構的 Picture 欄位
 	lottery.Picture = fileContent
@@ -220,9 +221,9 @@ func uploadHandler(c *gin.Context) {
 }
 
 // isDuplicatePicture 檢查數據庫中是否已存在相同的圖片
-func isDuplicatePicture(filename string) (bool, error) {
+func isDuplicatePicture(fileContent []byte) (bool, error) {
 	var existingLottery Lottery
-	result := db.Where("filename = ?", filename).First(&existingLottery)
+	result := db.Where("picture = ?", fileContent).First(&existingLottery)
 	if result.RowsAffected > 0 {
 		return true, nil
 	} else if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
