@@ -30,7 +30,7 @@ func SetupDB() (*gorm.DB, error) {
 		return nil, err
 	}
 	// 自動遷移，創建表格
-	db.AutoMigrate(&Lottery{}, &Removed{})
+	db.AutoMigrate(&Lottery{}, &Removed{}, &Award{})
 	// 關閉自動遷移
 	// db = db.Session(&gorm.Session{SkipDefaultTransaction: true})
 	// // 手動遷移
@@ -65,6 +65,12 @@ type Removed struct {
 	Session   sessions.Session `gorm:"-" json:"-"`
 }
 
+type Award struct {
+	gorm.Model
+	Num     int    `gorm:"column:num"`
+	Picture []byte `gorm:"column:picture"`
+}
+
 func main() {
 	// // 設定 GIN_MODE 為 release 模式
 	// gin.SetMode(gin.ReleaseMode)
@@ -74,6 +80,8 @@ func main() {
 
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
+	// 在 Gin 路由設置中加入靜態文件中間件
+	r.Static("/static", "./static")
 
 	// 設定 session 中間件
 	store := cookie.NewStore([]byte("secret"))
@@ -179,14 +187,14 @@ func uploadHandler(c *gin.Context) {
 		return
 	}
 
-	// 檢查數據庫中是否已存在相同的圖片
-	if isDuplicate, err := isDuplicatePicture(fileContent); err != nil {
-		c.JSON(500, gin.H{"error": "Error checking duplicate picture", "details": err.Error()})
-		return
-	} else if isDuplicate {
-		c.JSON(400, gin.H{"error": "你已經上傳過這張圖片"})
-		return
-	}
+	// // 檢查數據庫中是否已存在相同的圖片
+	// if isDuplicate, err := isDuplicatePicture(fileContent); err != nil {
+	// 	c.JSON(500, gin.H{"error": "Error checking duplicate picture", "details": err.Error()})
+	// 	return
+	// } else if isDuplicate {
+	// 	c.JSON(400, gin.H{"error": "你已經上傳過這張圖片"})
+	// 	return
+	// }
 
 	// 隨機選取不在 removed 表中的數字
 	randomNumber := getRandomNumber()
@@ -248,9 +256,7 @@ func isDuplicatePicture(fileContent []byte) (bool, error) {
 
 func getLotteryData(c *gin.Context) {
 	var removedNumbers []int
-	var awardNumbers []int
-	sessionID := generateSessionID(c)
-	fmt.Println("start session", sessionID)
+	var awards map[int][]byte
 
 	// 提取 removed 的數據
 	if err := db.Table("removeds").Pluck("num", &removedNumbers).Error; err != nil {
@@ -260,14 +266,21 @@ func getLotteryData(c *gin.Context) {
 	}
 
 	// 提取 award 的數據
-	if err := db.Table("award").Pluck("num", &awardNumbers).Error; err != nil {
+	var awardEntries []Award
+	if err := db.Table("awards").Find(&awardEntries).Error; err != nil {
 		fmt.Println("getLotteryData error award", err)
 		c.JSON(500, gin.H{"error": "Error fetching award data", "details": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"removed": removedNumbers, "大獎": awardNumbers})
+	awards = make(map[int][]byte)
+	for _, entry := range awardEntries {
+		awards[entry.Num] = entry.Picture
+	}
+
+	c.JSON(200, gin.H{"removed": removedNumbers, "大獎": awards})
 }
+
 func getRandomNumber() int {
 	// 获取所有的数字
 	var allNumbers []int
