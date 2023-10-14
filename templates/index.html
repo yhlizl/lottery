@@ -254,6 +254,7 @@
     // 定義全局變數
     var removedNumbers = [];
     var winningNumbersList = [];
+    var winningNumbers = {};
     fetchData();        
 
 window.addEventListener("resize", resizeCanvas, false);
@@ -430,7 +431,7 @@ function (callback) {
             removedNumbers = response.data.removed;
             winningNumbers = response.data.大獎;
             // 中獎號碼的數字列表
-            var winningNumbersList = Object.keys(winningNumbers).map(function (number) {
+            winningNumbersList = Object.keys(winningNumbers).map(function (number) {
                 return parseInt(number);
             });
 
@@ -511,7 +512,7 @@ function (callback) {
                 onLoad()
                 // 中獎時顯示相應的圖片
                 var imageSrc = getImageSrcByNumber(parseInt(text));
-                alert('中獎號碼 ' + text + '：\n' + imageSrc);
+                showWinningImage(parseInt(text))
                 showResultMessage('恭喜中獎');
             } else {
                 // context.fillText('差一點點', 100, 100);
