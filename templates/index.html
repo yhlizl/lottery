@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羅油膩機台刮刮樂</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f8f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        
+        h1 {
+            color: #333;
+        }
+        
+        input {
+            margin-top: 10px;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        #resetButton {
+            padding: 10px 15px;
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        #resetButton:hover {
+            background-color: #c82333;
+        }
+        
+        #numberGrid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .gridItem {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        canvas {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        #resultMessage {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            background-color: #fff;
+            padding: 20px;
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        #congratulationText {
+            color: #4caf50;
+        }
+        
+        .fileInputLabel {
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .fileInputButton {
+            padding: 10px 15px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .fileInputButton:hover {
+            background-color: #45a049;
+        }
+        
+        .fileInputButton.disabled {
+            opacity: 0.5; /* 降低透明度表示禁用狀態 */
+            cursor: not-allowed; /* 使用不允許的游標 */
+        }
+        .firstStepButton.disabled {
+            opacity: 0.5; /* 降低透明度表示禁用狀態 */
+            cursor: not-allowed; /* 使用不允許的游標 */
+        }
+        .secondStepButton.disabled {
+            opacity: 0.5; /* 降低透明度表示禁用狀態 */
+            cursor: not-allowed; /* 使用不允許的游標 */
+        }
+        fireworksCanvas{
+            background:#000;
+            }
+
+#loadingModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#loadingModal.show {
+    visibility: visible;
+    opacity: 1;
+}
+
+.spinner {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+    </style>
+</head>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<!-- Bootstrap JS and Popper.js -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
+
+
+<body>
+    <h1>羅油膩機台刮刮樂</h1>
+    <label for="fileInput" class="fileInputLabel">請三個物品為一張照片拍照上傳：</label>
+    <button class="fileInputButton" id="uploadButton" onclick="handleUpload()">拍照並上傳</button>
+    
+    <input type="file" accept="image/*" capture="camera" id="fileInput" required style="display: none;">
+    
+    <div id="numberGrid"></div>
+    <canvas id="fireworksCanvas" width="400" height="300" style="position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);display: none;"></canvas>
+
+    <!-- <div id="resultMessage">
+        <h2 id="congratulationText"></h2>
+    </div>
+-->
+
+<script src="./dist/card.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<!-- 說明中獎機率 -->
+<div id="probabilityExplanation">
+    <p id="probabilityText"></p>
+</div>
+<div class="m-ui-scratch" id="numberGrid"></div>
+<canvas class="m-ui-scratch" id="js_lottery"></canvas>
+<div id="resultMessage" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; background-color: #fff; padding: 20px; border: 2px solid #4caf50; border-radius: 10px; display: none;">
+    <h2 id="congratulationText" style="color: #4caf50;"></h2>
+</div>
+
+<!-- 在body結尾處加入以下Modal的HTML -->
+<div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultModalLabel">中獎結果</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="resultText"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="loadingModal">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+</div>
+
+
+<button id="showNumbersButton" class="btn btn-primary">查看你已抽過的號碼</button>
+
+
+
+<script>
+    // Mock result for testing, replace with actual result
+    var result = undefined;
+    // 定義全局變數
+    var removedNumbers = [];
+    var winningNumbers = [];
+    fetchData();        
+
+window.addEventListener("resize", resizeCanvas, false);
+window.requestAnimationFrame = 
+window.requestAnimationFrame       || 
+window.webkitRequestAnimationFrame || 
+window.mozRequestAnimationFrame    || 
+window.oRequestAnimationFrame      || 
+window.msRequestAnimationFrame     || 
+function (callback) {
+    window.setTimeout(callback, 1000/60);
+};
+ var canvas, ctx, w, h, particles = [], probability = 0.04,
+     xPoint, yPoint;
+ function onLoad() {
+     canvas = document.getElementById("fireworksCanvas");
+     canvas.style.display = 'block'
+
+     ctx = canvas.getContext("2d");
+     ctx.imageSmoothingEnabled = true;
+
+     resizeCanvas();     
+     window.requestAnimationFrame(updateWorld);
+
+     // 設定十秒後隱藏
+    setTimeout(function() {
+        canvas.style.display = 'none';
+    }, 10000);
+ } 
+  
+ function resizeCanvas() {
+     if (!!canvas) {
+         w = canvas.width = window.innerWidth;
+         h = canvas.height = window.innerHeight;
+     }
+ } 
+  
+ function updateWorld() {
+     update();
+     paint();
+     window.requestAnimationFrame(updateWorld);
+ } 
+  
+ function update() {
+     if (particles.length < 500 && Math.random() < probability) {
+         createFirework();
+     }
+     var alive = [];
+     for (var i=0; i<particles.length; i++) {
+         if (particles[i].move()) {
+             alive.push(particles[i]);
+         }
+     }
+     particles = alive;
+ } 
+  
+ function paint() {
+     ctx.globalCompositeOperation = 'source-over';
+     ctx.fillStyle = "rgba(0,0,0,0.2)";
+     ctx.fillRect(0, 0, w, h);
+     ctx.globalCompositeOperation = 'lighter';
+     for (var i=0; i<particles.length; i++) {
+         particles[i].draw(ctx);
+     }
+ } 
+  
+ function createFirework() {
+     xPoint = Math.random()*(w-200)+100;
+     yPoint = Math.random()*(h-200)+100;
+     var nFire = Math.random()*50+100;
+     var c = "rgb("+(~~(Math.random()*200+55))+","
+          +(~~(Math.random()*200+55))+","+(~~(Math.random()*200+55))+")";
+     for (var i=0; i<nFire; i++) {
+         var particle = new Particle();
+         particle.color = c;
+         var vy = Math.sqrt(25-particle.vx*particle.vx);
+         if (Math.abs(particle.vy) > vy) {
+             particle.vy = particle.vy>0 ? vy: -vy;
+         }
+         particles.push(particle);
+     }
+ } 
+  
+ function Particle() {
+     this.w = this.h = Math.random()*4+1;  
+     this.x = xPoint-this.w/2;
+     this.y = yPoint-this.h/2;     
+     this.vx = (Math.random()-0.5)*10;
+     this.vy = (Math.random()-0.5)*10;    
+     this.alpha = Math.random()*.5+.5;     
+     this.color;
+ } 
+  
+ Particle.prototype = {
+     gravity: 0.05,
+     move: function () {
+         this.x += this.vx;
+         this.vy += this.gravity;
+         this.y += this.vy;
+         this.alpha -= 0.01;
+         if (this.x <= -this.w || this.x >= screen.width ||
+             this.y >= screen.height ||
+             this.alpha <= 0) {
+                 return false;
+         }
+         return true;
+     },
+     draw: function (c) {
+         c.save();
+         c.beginPath();         
+         c.translate(this.x+this.w/2, this.y+this.h/2);
+         c.arc(0, 0, this.w, 0, Math.PI*2);
+         c.fillStyle = this.color;
+         c.globalAlpha = this.alpha;         
+         c.closePath();
+         c.fill();
+         c.restore();
+     }
+ } 
+    function handleUpload() {
+        var fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.click();
+        }
+    }
+    
+    document.getElementById('fileInput').addEventListener('change', function () {
+        uploadFile();
+    });
+    
+    function uploadFile() {
+        var fileInput = document.getElementById('fileInput');
+        var file = fileInput.files[0];
+        
+        var formData = new FormData();
+        formData.append('picture', file, file.name);
+        
+         // 顯示 Loading Modal
+        var loadingModal = document.getElementById('loadingModal');
+        loadingModal.classList.add('show');
+
+        axios.post('http://localhost:8787/lottery', formData)
+        .then(function (response) {
+            console.log(response.data);
+            localStorage.setItem('hasUploaded', 'true');
+            alert('圖片上傳成功，請到下方刮獎區開獎!!切勿重新上傳!!');
+            result = response.data.result;
+            
+            if (result) {
+                convertTextToImage(result);
+                 // 在這裡設置 uploadButton 的 display 為 'none'
+            var uploadButton = document.getElementById('uploadButton');
+            if (uploadButton) {
+                uploadButton.style.display = 'none';
+            }
+            }
+
+            // 關閉 Loading Modal
+            loadingModal.classList.remove('show');
+        })
+        .catch(function (error) {
+            console.error('Error uploading file: ', error);
+            var errorMessage = error.response ? error.response.data.error : 'Unknown error';
+            alert('Error uploading file: ' + errorMessage);
+            // 關閉 Loading Modal
+            loadingModal.classList.remove('show');
+        });
+    }
+    
+    function fetchData() {
+        axios.post('http://localhost:8787/getlottery')
+        .then(function (response) {
+            console.log(response.data);
+            removedNumbers = response.data.removed;
+            winningNumbers = response.data.大獎;
+            
+            updateNumberGrid(result, removedNumbers, winningNumbers);
+            // 檢查是否所有中獎號碼都已經被抽取
+            var allWinningNumbersRemoved = winningNumbers.every(function (number) {
+                return removedNumbers.includes(number);
+            });
+            updateWinningProbability();
+            
+            
+            if (allWinningNumbersRemoved) {
+                alert('抽完了，請聯絡羅油膩');
+            }
+        })
+        .catch(function (error) {
+            console.error('Error fetching data: ', error);
+        });
+    }
+    
+    function updateNumberGrid(result, removedNumbers, winningNumbers) {
+        var numberGrid = document.getElementById('numberGrid');
+        numberGrid.innerHTML = '';
+        
+        for (var i = 1; i <= 40; i++) {
+            var gridItem = document.createElement('div');
+            gridItem.className = 'gridItem';
+            gridItem.textContent = i;
+            
+            if (removedNumbers && removedNumbers.includes(i)) {
+                gridItem.innerHTML = '<span style="text-decoration: line-through;">' + i + '</span>';
+                gridItem.style.backgroundColor = 'gray';
+            }
+            
+            if (winningNumbers && winningNumbers.includes(i)) {
+                gridItem.style.backgroundColor = 'gold';
+            }
+            
+            numberGrid.appendChild(gridItem);
+        }
+    }
+    
+    function convertTextToImage(text) {
+        var canvas = document.createElement('canvas');
+        var context = canvas.getContext('2d');
+        
+        var fontSize = 80;
+        context.font = 'bold ' + fontSize + 'px Arial';
+        
+        context.fillStyle = 'blue';
+        
+        context.fillText(text, 100, 100);
+        showLotteryCard(canvas.toDataURL(), text);
+    }
+    
+    function showResultMessage(message) {
+        var resultText = document.getElementById('resultText');
+        resultText.textContent = message;
+        
+        // 顯示中獎Modal
+        var resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+        resultModal.show();
+    }
+    
+    function showLotteryCard(imageURL, text) {
+        var lottery = new LotteryCard(document.getElementById('js_lottery'), {
+            cover: "gray"
+        });
+        lottery.on('start', function () {
+            lottery.setResult(imageURL);
+        });
+        lottery.on('end', function () {
+            // Handle end event if needed
+            var isWinningNumber = winningNumbers && winningNumbers.includes(parseInt(text));
+            if (isWinningNumber) {
+                // context.fillText('恭喜中獎', 100, 100);
+                onLoad()
+                showResultMessage('恭喜中獎');
+            } else {
+                // context.fillText('差一點點', 100, 100);
+                showResultMessage('差一點點');
+            }
+        });
+        window.lottery = lottery;
+    }
+    
+    // Reset function
+    function resetLottery() {
+        // onLoad()
+        alert('重置成功');
+        location.reload(); // 重新整理頁面
+    }
+    
+    // Calculate winning probability function
+    function calculateWinningProbability() {
+        if (removedNumbers && winningNumbers) {
+            var totalNumbers = 40;
+            var remainingNumbers = totalNumbers - removedNumbers.length;
+            var winningNumbersCount = winningNumbers.filter(number => !removedNumbers.includes(number)).length;
+            
+            var probability = (winningNumbersCount / remainingNumbers) * 100;
+            return probability.toFixed(2) + '%';
+        }
+        
+        return 'N/A';
+    }
+    
+    function updateWinningProbability() {
+        var probabilityText = document.getElementById('probabilityText');
+        
+        if (probabilityText) {  // 檢查對象是否存在
+            probabilityText.textContent = '中獎機率：' + calculateWinningProbability();
+        }
+    }
+    
+    document.getElementById('showNumbersButton').addEventListener('click', function () {
+    // 向後端發送請求獲取已抽過的號碼
+    axios.post('http://localhost:8787/getMyLotteryNumbers')
+        .then(data => {
+            // 這裡 data 是從後端返回的數據，可以是已抽過的號碼
+            var modalContent = generateModalContent(data.data);
+            showModal('已抽過的號碼', modalContent);
+        })
+        .catch(error => {
+            console.error('Error fetching data: ', error);
+        });
+});
+
+function generateModalContent(data) {
+    console.log("Data",data)
+    if (data.removed && data.removed.length > 0) {
+        var content = '<ul>';
+        data.removed.forEach(number => {
+            content += '<li>' + number.Num + '</li>' + number.CreatedAt;
+        });
+        content += '</ul>';
+        return content;
+    } else {
+        return '<p>暫無已抽過的號碼</p>';
+    }
+}
+
+function showModal(title, content) {
+    var modal = new bootstrap.Modal(document.getElementById('resultModal'));
+    var modalTitle = document.getElementById('resultModalLabel');
+    var modalBody = document.querySelector('#resultModal .modal-body');
+
+    // 設定 Modal 的標題和內容
+    modalTitle.textContent = title;
+    modalBody.innerHTML = content;
+
+    // 顯示 Modal
+    modal.show();
+}
+
+    
+    
+</script>
+
+<!-- Reset Button -->
+<button id="resetButton" onclick="resetLottery()">是否要上傳另外三個物品</button>

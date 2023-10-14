@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"mime/multipart"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -21,7 +22,9 @@ var db *gorm.DB
 
 func SetupDB() (*gorm.DB, error) {
 	// 修改下面的數據為你的 MySQL 連線信息
-	dsn := "root:usbw@tcp(127.0.0.1:3306)/lottery?charset=utf8mb4&parseTime=True&loc=Local"
+	// cd /usr/local/Cellar/phpmyadmin/5.2.1/share/phpmyadmin
+	// php -S localhost:3007
+	dsn := "root:hanshans@tcp(127.0.0.1:3306)/lottery_fans?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
@@ -70,6 +73,8 @@ func main() {
 	gin.SetMode(gin.DebugMode)
 
 	r := gin.Default()
+	r.LoadHTMLGlob("templates/*")
+
 	// 設定 session 中間件
 	store := cookie.NewStore([]byte("secret"))
 	r.Use(sessions.Sessions("mysession", store))
@@ -88,7 +93,15 @@ func main() {
 	r.POST("/lottery", uploadHandler)
 	r.POST("/getlottery", getLotteryData)
 	r.POST("/getMyLotteryNumbers", getMyLotteryNumbers)
-	r.Run(":8080")
+	// 添加路由
+	r.GET("/", indexHandler)
+	r.Run(":8787")
+}
+
+func indexHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"title": "My Web Page",
+	})
 }
 
 func getMyLotteryNumbers(c *gin.Context) {
