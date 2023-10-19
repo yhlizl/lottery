@@ -103,7 +103,7 @@ func main() {
 	r.POST("/getMyLotteryNumbers", getMyLotteryNumbers)
 	// 添加路由
 	r.GET("/", indexHandler)
-	r.Run(":8787")
+	r.Run(":8080")
 }
 
 func indexHandler(c *gin.Context) {
