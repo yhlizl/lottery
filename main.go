@@ -24,7 +24,7 @@ func SetupDB() (*gorm.DB, error) {
 	// 修改下面的數據為你的 MySQL 連線信息
 	// cd /usr/local/Cellar/phpmyadmin/5.2.1/share/phpmyadmin
 	// php -S localhost:3007
-	dsn := "root:hanshans@tcp(127.0.0.1:3306)/lottery_fans?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:usbw@tcp(127.0.0.1:3306)/lottery?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
